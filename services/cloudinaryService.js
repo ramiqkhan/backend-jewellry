@@ -18,6 +18,42 @@ export function uploadImage(file, subFolder = "") {
   });
 }
 
+// Uploads an image or video into any folder and returns { url, publicId, type }
+export function uploadMedia(file, folder) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder, resource_type: "auto" },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve({ url: result.secure_url, publicId: result.public_id, type: result.resource_type });
+      }
+    );
+    stream.end(file.buffer);
+  });
+}
+
+// Deletes one image or video; videos need their resource type to be found
+export async function deleteMedia(publicId, type = "image") {
+  if (!publicId) return;
+
+  try {
+    await cloudinary.uploader.destroy(publicId, { resource_type: type, invalidate: true });
+  } catch (error) {
+    // Cleanup failure shouldn't break the request
+    console.error(`Cloudinary delete failed: ${error.message}`);
+  }
+}
+
+// A JPG of a video's first frame, used as its thumbnail
+export function videoPosterUrl(publicId) {
+  return cloudinary.url(publicId, {
+    resource_type: "video",
+    format: "jpg",
+    secure: true,
+    transformation: [{ start_offset: "0" }],
+  });
+}
+
 export async function uploadImages(files = [], subFolder = "") {
   const uploaded = [];
   try {

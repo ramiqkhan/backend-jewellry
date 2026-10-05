@@ -13,6 +13,7 @@ import {
   deleteProduct,
 } from "../controllers/productController.js";
 import { uploadProductImages } from "../middleware/upload.js";
+import { requireAdmin, adminOnlyIncludeInactive } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -24,11 +25,11 @@ router.get("/menu/:menuSlug", getProductsByMenu);
 router.get("/options", getOptions);
 router.get("/sku/:sku", getProductBySku);
 
-router.get("/", getProducts);
-router.post("/", uploadProductImages, createProduct);
+router.get("/", adminOnlyIncludeInactive, getProducts);
+router.post("/", requireAdmin, uploadProductImages, createProduct);
 
 router.get("/:idOrSlug", getProduct);
-router.patch("/:id", uploadProductImages, updateProduct);
-router.delete("/:id", deleteProduct);
+router.patch("/:id", requireAdmin, uploadProductImages, updateProduct);
+router.delete("/:id", requireAdmin, deleteProduct);
 
 export default router;
