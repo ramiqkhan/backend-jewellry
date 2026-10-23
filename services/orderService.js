@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { Product } from "../models/Product.js";
+import { Product, currentPrice } from "../models/Product.js";
 import {
   Order,
   ORDER_STATUSES,
@@ -111,6 +111,9 @@ async function buildOrderItems(requested) {
       throw httpError(400, `Size "${size}" is not available for ${product.name}`);
     }
 
+    // Discounted price if a sale is running at checkout time
+    const price = currentPrice(product);
+
     return {
       product: product._id,
       name: product.name,
@@ -118,9 +121,10 @@ async function buildOrderItems(requested) {
       slug: product.slug,
       image: product.images[0]?.url || "",
       size: hasSizes ? size : "",
-      price: product.price,
+      price,
+      originalPrice: product.price,
       quantity,
-      lineTotal: product.price * quantity,
+      lineTotal: price * quantity,
     };
   });
 }

@@ -3,6 +3,9 @@ import mongoose from "mongoose";
 // Main product type — every product belongs to exactly one
 export const CATEGORIES = ["rings", "necklaces", "earrings", "bracelets", "watches"];
 
+// Who a product is for. "unisex" shows up under both women's and men's filters.
+export const GENDERS = ["women", "men", "unisex"];
+
 // Curated collections — a product can belong to several (or none)
 export const COLLECTIONS = ["fine-jewellery", "80s-collection"];
 
@@ -69,8 +72,24 @@ const productSchema = new mongoose.Schema(
       default: [],
     },
     isNewArrival: { type: Boolean, default: false },
+    gender: {
+      type: String,
+      enum: { values: GENDERS, message: "Gender must be women, men or unisex" },
+      default: "unisex",
+    },
 
     price: { type: Number, required: [true, "Price is required"], min: 0 },
+    // Optional sale. Active while percent > 0 and today is inside the (optional) start/end dates.
+    discount: {
+      percent: {
+        type: Number,
+        default: 0,
+        min: [0, "Discount can't be negative"],
+        max: [90, "Discount can't be more than 90%"],
+      },
+      startsAt: { type: Date, default: null },
+      endsAt: { type: Date, default: null },
+    },
     currency: { type: String, default: "PKR", uppercase: true, trim: true },
     priceNote: {
       type: String,
@@ -98,10 +117,52 @@ productSchema.index({ collections: 1, isActive: 1 });
 productSchema.index({ isNewArrival: 1, isActive: 1 });
 productSchema.index({ name: "text", description: "text" });
 
+productSchema.index({ gender: 1, isActive: 1 });
+
 productSchema.pre("validate", function () {
   if (this.name && (!this.slug || this.isModified("name"))) {
     this.slug = slugify(this.name);
   }
+
+  const { startsAt, endsAt } = this.discount || {};
+  if (startsAt && endsAt && endsAt < startsAt) {
+    this.invalidate("discount.endsAt", "Discount end date must be after the start date");
+  }
 });
 
 export const Product = mongoose.model("Product", productSchema);
+
+// --- Pricing ---------------------------------------------------------------
+
+export function isDiscountActive(product, now = new Date()) {
+  const { percent, startsAt, endsAt } = product.discount || {};
+  if (!(percent > 0)) return false;
+  if (startsAt && new Date(startsAt) > now) return false;
+  if (endsAt && new Date(endsAt) < now) return false;
+  return true;
+}
+
+// What the customer pays right now (rounded to whole rupees)
+export function currentPrice(product, now = new Date()) {
+  return isDiscountActive(product, now)
+    ? Math.round(product.price * (1 - product.discount.percent / 100))
+    : product.price;
+}
+
+// Adds { onSale, finalPrice } to a product (lean object or document) for API responses
+export function withPricing(product) {
+  if (!product) return product;
+  const plain = typeof product.toObject === "function" ? product.toObject() : product;
+  return { ...plain, onSale: isDiscountActive(plain), finalPrice: currentPrice(plain) };
+}
+
+// Mongo filter for products whose discount is running right now
+export function onSaleFilter(now = new Date()) {
+  return {
+    "discount.percent": { $gt: 0 },
+    $and: [
+      { $or: [{ "discount.startsAt": null }, { "discount.startsAt": { $lte: now } }] },
+      { $or: [{ "discount.endsAt": null }, { "discount.endsAt": { $gte: now } }] },
+    ],
+  };
+}

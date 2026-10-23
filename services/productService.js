@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
-import { Product, CATEGORIES, COLLECTIONS, MENU } from "../models/Product.js";
+import {
+  Product,
+  CATEGORIES,
+  COLLECTIONS,
+  GENDERS,
+  MENU,
+  withPricing,
+  onSaleFilter,
+} from "../models/Product.js";
 import { uploadImages, deleteImages } from "./cloudinaryService.js";
 import { MAX_IMAGES } from "../middleware/upload.js";
 
@@ -20,7 +28,9 @@ const EDITABLE_FIELDS = [
   "category",
   "collections",
   "isNewArrival",
+  "gender",
   "price",
+  "discount",
   "currency",
   "priceNote",
   "description",
@@ -39,7 +49,7 @@ function httpError(statusCode, message) {
 }
 
 // Array/object fields arrive as JSON strings when sent as multipart/form-data
-const JSON_FIELDS = ["collections", "sizes", "specifications", "removeImages", "imageAlts"];
+const JSON_FIELDS = ["collections", "sizes", "specifications", "discount", "removeImages", "imageAlts"];
 
 function parseBody(data = {}) {
   const parsed = { ...data };
@@ -120,6 +130,11 @@ function buildFilter(query = {}) {
   if (query.category) filter.category = query.category.toLowerCase();
   if (query.collection) filter.collections = query.collection.toLowerCase();
   if (query.newArrival === "true") filter.isNewArrival = true;
+  // ?gender=women also includes unisex pieces (same for men).
+  // null matches products saved before gender existed, which count as unisex.
+  if (GENDERS.includes(query.gender)) {
+    filter.gender = { $in: query.gender === "unisex" ? ["unisex", null] : [query.gender, "unisex", null] };
+  }
 
   if (query.minPrice || query.maxPrice) {
     filter.price = {};
@@ -131,6 +146,13 @@ function buildFilter(query = {}) {
 
   const terms = searchTerms(query.search);
   if (terms.length) Object.assign(filter, searchFilter(terms));
+
+  // ?onSale=true: only products with a discount running today
+  if (query.onSale === "true") {
+    const { $and, ...rest } = onSaleFilter();
+    Object.assign(filter, rest);
+    filter.$and = [...(filter.$and || []), ...$and];
+  }
 
   return filter;
 }
@@ -150,7 +172,7 @@ async function paginate(filter, query = {}) {
   ]);
 
   return {
-    products,
+    products: products.map(withPricing),
     pagination: { total, page, limit, pages: Math.ceil(total / limit) },
   };
 }
@@ -224,7 +246,7 @@ export async function searchProducts(query = {}) {
 
   return {
     query: q,
-    products: result.products,
+    products: result.products.map(withPricing),
     pagination: { total, page, limit, pages: Math.ceil(total / limit) },
     facets: {
       categories: toCounts(facets.categories),
@@ -255,6 +277,7 @@ export async function getSearchSuggestions(q, limit = 6) {
         sku: 1,
         category: 1,
         price: 1,
+        discount: 1,
         currency: 1,
         image: { $arrayElemAt: ["$images", 0] },
       },
@@ -267,7 +290,7 @@ export async function getSearchSuggestions(q, limit = 6) {
     return terms.some((term) => words.some((word) => word.startsWith(term)));
   }).map(({ label, slug }) => ({ label, slug }));
 
-  return { query: String(q).trim(), products, links };
+  return { query: String(q).trim(), products: products.map(withPricing), links };
 }
 
 // Accepts either a Mongo id or a slug
@@ -278,13 +301,13 @@ export async function getProduct(idOrSlug) {
 
   const product = await Product.findOne(filter).lean();
   if (!product) throw httpError(404, "Product not found");
-  return product;
+  return withPricing(product);
 }
 
 export async function getProductBySku(sku) {
   const product = await Product.findOne({ sku: sku.toUpperCase() }).lean();
   if (!product) throw httpError(404, "Product not found");
-  return product;
+  return withPricing(product);
 }
 
 export async function createProduct(data, files = []) {
@@ -298,7 +321,7 @@ export async function createProduct(data, files = []) {
   product.images = withAlts(uploaded, body.imageAlts, product.name);
 
   try {
-    return await product.save();
+    return withPricing(await product.save());
   } catch (error) {
     await deleteImages(uploaded.map((img) => img.publicId));
     throw error;
@@ -340,7 +363,7 @@ export async function updateProduct(id, data, files = []) {
 
   // Only delete from Cloudinary once the product no longer references them
   await deleteImages(removedIds);
-  return product;
+  return withPricing(product);
 }
 
 export async function deleteProduct(id) {
@@ -357,6 +380,7 @@ export function getOptions() {
   return {
     categories: CATEGORIES,
     collections: COLLECTIONS,
+    genders: GENDERS,
     sorts: Object.keys(SORT_OPTIONS),
   };
 }

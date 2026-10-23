@@ -22,7 +22,8 @@ const orderItemSchema = new mongoose.Schema(
     slug: { type: String, trim: true, default: "" },
     image: { type: String, trim: true, default: "" },
     size: { type: String, trim: true, default: "" }, // empty when the product has no sizes
-    price: { type: Number, required: true, min: 0 },
+    price: { type: Number, required: true, min: 0 }, // what the customer paid per piece
+    originalPrice: { type: Number, min: 0 }, // list price before any discount
     quantity: { type: Number, required: true, min: 1 },
     lineTotal: { type: Number, required: true, min: 0 },
   },
