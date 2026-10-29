@@ -53,6 +53,13 @@ const orderSchema = new mongoose.Schema(
         match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, "Invalid email address"],
       },
       phone: { type: String, required: [true, "Phone number is required"], trim: true },
+      // Optional second number, used if the main one can't be reached (e.g. by the courier)
+      alternativePhone: {
+        type: String,
+        trim: true,
+        default: "",
+        maxlength: [30, "Alternative phone number is too long"],
+      },
     },
 
     shippingAddress: {

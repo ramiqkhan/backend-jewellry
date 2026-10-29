@@ -12,7 +12,9 @@ import {
 const MAX_ITEMS = 20;
 const MAX_QUANTITY = 10;
 
-const SHIPPING_FEE = () => Number(process.env.SHIPPING_FEE) || 0;
+// Free shipping at/above the threshold; otherwise a flat fee applies
+const FREE_SHIPPING_THRESHOLD = () => Number(process.env.FREE_SHIPPING_THRESHOLD) || 3500;
+const SHIPPING_FEE = () => Number(process.env.SHIPPING_FEE) || 299;
 
 const SORT_OPTIONS = {
   newest: { createdAt: -1 },
@@ -137,7 +139,7 @@ export async function createOrder(data = {}) {
   if (!PAYMENT_METHODS.includes(paymentMethod)) throw httpError(400, `Invalid payment method: ${paymentMethod}`);
 
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const shippingFee = SHIPPING_FEE();
+  const shippingFee = subtotal >= FREE_SHIPPING_THRESHOLD() ? 0 : SHIPPING_FEE();
 
   const order = new Order({
     orderNumber: "PENDING", // replaced below, once validation has passed
@@ -189,7 +191,7 @@ function buildFilter(query = {}) {
     if (query.to) filter.createdAt.$lte = new Date(query.to);
   }
 
-  // Matches order number, customer name, email or phone
+  // Matches order number, customer name, email or either phone number
   if (query.search) {
     const pattern = new RegExp(escapeRegex(query.search.trim()), "i");
     filter.$or = [
@@ -197,6 +199,7 @@ function buildFilter(query = {}) {
       { "customer.name": pattern },
       { "customer.email": pattern },
       { "customer.phone": pattern },
+      { "customer.alternativePhone": pattern },
     ];
   }
 
