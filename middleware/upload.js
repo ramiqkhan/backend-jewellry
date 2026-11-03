@@ -30,6 +30,9 @@ export const uploadProductImages = upload.array("images", MAX_IMAGES);
 // Customer review screenshot: formData.append("image", file)
 export const uploadReviewImage = upload.single("image");
 
+// Deal banner: formData.append("banner", file)
+export const uploadDealBanner = upload.single("banner");
+
 // Instagram post, photo or reel: formData.append("media", file)
 // Multer has one size limit per uploader, so the 5MB image limit is checked in the service
 export const uploadInstagramMedia = multer({

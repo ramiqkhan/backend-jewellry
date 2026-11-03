@@ -89,6 +89,8 @@ const productSchema = new mongoose.Schema(
       },
       startsAt: { type: Date, default: null },
       endsAt: { type: Date, default: null },
+      // Set when the discount comes from a deal (see models/Deal.js); null = set by hand on the product
+      deal: { type: mongoose.Schema.Types.ObjectId, ref: "Deal", default: null },
     },
     currency: { type: String, default: "PKR", uppercase: true, trim: true },
     priceNote: {

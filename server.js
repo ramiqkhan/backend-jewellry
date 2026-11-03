@@ -11,6 +11,7 @@ import reviewRoutes from "./routes/reviewRoutes.js";
 import instagramRoutes from "./routes/instagramRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
+import dealRoutes from "./routes/dealRoutes.js";
 import { getShowcase } from "./controllers/showcaseController.js";
 
 configureCloudinary();
@@ -49,6 +50,7 @@ app.use("/api/orders", orderRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/instagram", instagramRoutes);
 app.use("/api/contact", contactRoutes);
+app.use("/api/deals", dealRoutes);
 app.get("/api/showcase", getShowcase);
 
 // 404 for unknown routes
